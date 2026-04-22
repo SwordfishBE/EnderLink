@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "enderlink",
+  "version": "${version}",
+  "name": "EnderLink",
+  "description": "Two blocks. One link. Infinite distance.",
+  "authors": [
+    "SwordfishBE"
+  ],
+  "contact": {
+    "homepage": "https://github.com/SwordfishBE/EnderLink",
+    "sources": "https://github.com/SwordfishBE/EnderLink",
+    "issues": "https://github.com/SwordfishBE/EnderLink/issues",
+    "email": "swordfishbe@locutus.net"
+  },
+  "license": "AGPL-3.0",
+  "icon": "assets/enderlink/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.enderlink.EnderLinkMod"
+    ],
+    "modmenu": [
+      "net.enderlink.EnderLinkModMenuIntegration"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "fabric-api": "*",
+    "minecraft": "~26.1.2"
+  },
+  "suggests": {
+    "cloth-config": "*",
+    "elevator": "*",
+    "luckperms": "*",
+    "modmenu": "*"
+  }
+}
+
