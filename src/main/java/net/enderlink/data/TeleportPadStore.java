@@ -251,7 +251,14 @@ public final class TeleportPadStore {
                 continue;
             }
 
-            if (!isConfiguredTeleportBlock(level.getBlockState(pad.blockPos()).getBlock(), config)) {
+            BlockPos pos = pad.blockPos();
+            // Maintenance must never load a chunk. An unloaded pad is unknown, not invalid.
+            var chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+            if (chunk == null) {
+                continue;
+            }
+
+            if (!isConfiguredTeleportBlock(chunk.getBlockState(pos).getBlock(), config)) {
                 invalidPads.add(pad.name);
             }
         }
