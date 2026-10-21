@@ -223,7 +223,7 @@ Example:
 
 ## 📃 Data Files
 
-EnderLink stores everything under:
+EnderLink stores shared configuration and dedicated-server data under:
 
 ```text
 config/enderlink/
@@ -235,8 +235,22 @@ Files:
   Main mod configuration
 
 - `config/enderlink/teleports.json`
-  Stored teleport pad and link data
+  Dedicated-server teleport pad and link data (existing installations keep this path)
 
+Singleplayer worlds store their pads and links in `<world>/enderlink/teleports.json`.
+
+Since EnderLink 1.1.2 -> 
+Worlds no longer share teleport data. Before importing legacy singleplayer data, close the world and copy `config/enderlink/teleports.json` to `saves/<correct-world>/enderlink/teleports.json`.
+Back up any existing destination file first; do not overwrite a world that already has its own pads.
+The legacy file has no world identifier, so EnderLink never automatically assigns it to a world or deletes it.
+Keep the original until you have verified the imported pads.
+
+Saves use atomic file replacement and keep the previous contents in `teleports.json.bak`.
+If loading or saving fails, further changes are blocked.
+Stop the server, repair the data or restore the backup, and restart.
+
+Elevator block settings are cached at server startup and refreshed by
+`/enderlink reload` (also when saving EnderLink settings in Mod Menu).
 
 ---
 
