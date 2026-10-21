@@ -34,7 +34,6 @@ public final class EnderLinkMod implements ModInitializer {
     @Override
     public void onInitialize() {
         EnderLinkConfig.load();
-        PAD_STORE.load();
 
         LOGGER.info("{} Mod initialized. Version: {}", logPrefix(), modVersion());
 
@@ -49,11 +48,18 @@ public final class EnderLinkMod implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             currentServer = server;
+            TELEPORT_SERVICE.clear();
+            PAD_STORE.load(server);
+            ElevatorCompat.refresh();
             PAD_STORE.validateConfiguredPads(server);
             ElevatorCompat.warnIfConflictingBlocks();
             ModrinthUpdateChecker.checkOnceAsync();
         });
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> currentServer = null);
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            currentServer = null;
+            TELEPORT_SERVICE.clear();
+            PAD_STORE.close();
+        });
     }
 
     public static TeleportPadStore padStore() {
@@ -88,6 +94,7 @@ public final class EnderLinkMod implements ModInitializer {
         }
 
         server.execute(() -> {
+            ElevatorCompat.refresh();
             PAD_STORE.validateConfiguredPads(server);
             ElevatorCompat.warnIfConflictingBlocks();
         });

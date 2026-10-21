@@ -78,6 +78,13 @@ public final class TeleportService {
         arrivalParticleEffects.remove(playerUuid);
     }
 
+    public void clear() {
+        pendingTeleports.clear();
+        failedInteractionLocks.clear();
+        arrivalLocks.clear();
+        arrivalParticleEffects.clear();
+    }
+
     public boolean isConfiguredTeleportBlock(Block block) {
         return getTeleportBlocks(EnderLinkConfig.get()).contains(block);
     }
@@ -211,6 +218,14 @@ public final class TeleportService {
     }
 
     private boolean performTeleport(ServerPlayer player, TeleportPadData sourcePad, TeleportPadData destinationPad, long currentTick) {
+        if (!permissions.canUse(player)) {
+            sendFailure(player, "Teleport canceled because your permission changed.");
+            return false;
+        }
+        if (!isDimensionAllowed(sourcePad.dimension) || !isDimensionAllowed(destinationPad.dimension)) {
+            sendFailure(player, "Teleport canceled because the dimension is no longer allowed.");
+            return false;
+        }
         MinecraftServer server = player.createCommandSourceStack().getServer();
         if (server == null) {
             sendFailure(player, "Teleport failed because the server is unavailable.");
@@ -226,7 +241,8 @@ public final class TeleportService {
             return false;
         }
 
-        if (!sourcePad.name.equals(destinationPad.linkedPadName)) {
+        if (!sourcePad.name.equals(destinationPad.linkedPadName)
+            || !destinationPad.name.equals(sourcePad.linkedPadName)) {
             sendFailure(player, "Teleport failed because the link is no longer two-way.");
             return false;
         }
@@ -262,7 +278,7 @@ public final class TeleportService {
 
         playArrivalEffects(destinationLevel, landingSpot.x, landingSpot.y, landingSpot.z);
         int durationTicks = EnderLinkConfig.get().arrivalParticleDurationTicks;
-        if (durationTicks > 0) {
+        if (durationTicks > 0 && EnderLinkConfig.get().particlesEnabled && getParticleType(EnderLinkConfig.get()) != null) {
             arrivalParticleEffects.put(
                 player.getUUID(),
                 new ArrivalParticleEffect(
@@ -354,12 +370,17 @@ public final class TeleportService {
 
     private void tickArrivalEffects(MinecraftServer server, long currentTick) {
         EnderLinkConfig config = EnderLinkConfig.get();
-        if (arrivalParticleEffects.isEmpty() || !config.particlesEnabled) {
+        if (!config.particlesEnabled) {
+            arrivalParticleEffects.clear();
+            return;
+        }
+        if (arrivalParticleEffects.isEmpty()) {
             return;
         }
 
         SimpleParticleType particleType = getParticleType(config);
         if (particleType == null) {
+            arrivalParticleEffects.clear();
             return;
         }
 

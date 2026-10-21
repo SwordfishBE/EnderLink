@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -35,31 +34,31 @@ public final class TeleportPadStore {
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9_-]+");
 
     private final Map<String, TeleportPadData> padsByName = new LinkedHashMap<>();
+    private TeleportDataFile dataFile;
     private int nextId = 1;
 
-    public synchronized void load() {
+    public synchronized void load(MinecraftServer server) {
         padsByName.clear();
         nextId = 1;
-
-        if (!Files.exists(DATA_PATH)) {
-            save();
-            return;
-        }
+        Path path = server.isDedicatedServer() ? DATA_PATH
+            : server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                .resolve("enderlink").resolve("teleports.json");
+        dataFile = new TeleportDataFile(path);
 
         try {
-            StoreFile storeFile = GSON.fromJson(Files.readString(DATA_PATH), StoreFile.class);
+            StoreFile storeFile = dataFile.load(TeleportPadStore::decode);
             if (storeFile == null) {
-                save();
+                if (!server.isDedicatedServer() && Files.exists(DATA_PATH)) {
+                    EnderLinkMod.LOGGER.warn(
+                        "{} Legacy teleport data remains at {}. Copy it to {} with the server stopped to import it into this world.",
+                        EnderLinkMod.logPrefix(), DATA_PATH, path);
+                }
                 return;
             }
 
             nextId = Math.max(1, storeFile.nextId);
             if (storeFile.pads != null) {
                 for (TeleportPadData pad : storeFile.pads) {
-                    if (pad == null || !isValidPadName(pad.name) || pad.ownerUuid == null || pad.dimension == null) {
-                        continue;
-                    }
-
                     pad.name = normalizePadName(pad.name);
                     if (pad.linkedPadName != null && !pad.linkedPadName.isBlank()) {
                         pad.linkedPadName = normalizePadName(pad.linkedPadName);
@@ -75,6 +74,39 @@ public final class TeleportPadStore {
                 EnderLinkMod.logPrefix(),
                 exception.getMessage()
             );
+        }
+    }
+
+    private static StoreFile decode(String json) {
+        StoreFile file = GSON.fromJson(json, StoreFile.class);
+        if (file == null || file.pads == null) {
+            throw new IllegalArgumentException("Missing teleport data.");
+        }
+        Set<String> names = new HashSet<>();
+        for (TeleportPadData pad : file.pads) {
+            if (pad == null || !isValidPadName(pad.name) || pad.ownerUuid == null || pad.dimension == null
+                || !names.add(normalizePadName(pad.name))) {
+                throw new IllegalArgumentException("Invalid or duplicate teleport pad.");
+            }
+            UUID.fromString(pad.ownerUuid);
+            Identifier.parse(pad.dimension);
+        }
+        return file;
+    }
+
+    public synchronized boolean isWritable() {
+        return dataFile != null && dataFile.isWritable();
+    }
+
+    public synchronized void close() {
+        padsByName.clear();
+        nextId = 1;
+        dataFile = null;
+    }
+
+    private void requireWritable() {
+        if (!isWritable()) {
+            throw new IllegalStateException("Teleport data is unavailable or read-only. Restore the data and restart the server.");
         }
     }
 
@@ -100,6 +132,7 @@ public final class TeleportPadStore {
     }
 
     public synchronized TeleportPadData createPad(UUID ownerUuid, String dimension, BlockPos pos) {
+        requireWritable();
         String name = generateNextPadName();
         TeleportPadData pad = new TeleportPadData();
         pad.name = name;
@@ -115,6 +148,7 @@ public final class TeleportPadStore {
     }
 
     public synchronized void linkPads(String firstName, String secondName) {
+        requireWritable();
         TeleportPadData first = padsByName.get(normalizePadName(firstName));
         TeleportPadData second = padsByName.get(normalizePadName(secondName));
         if (first == null || second == null) {
@@ -127,6 +161,7 @@ public final class TeleportPadStore {
     }
 
     public synchronized void unlinkPads(String firstName, String secondName) {
+        requireWritable();
         TeleportPadData first = padsByName.get(normalizePadName(firstName));
         TeleportPadData second = padsByName.get(normalizePadName(secondName));
         if (first == null || second == null) {
@@ -143,6 +178,7 @@ public final class TeleportPadStore {
     }
 
     public synchronized void removePad(String name) {
+        requireWritable();
         String normalizedName = normalizePadName(name);
         TeleportPadData removed = padsByName.remove(normalizedName);
         if (removed == null) {
@@ -166,6 +202,7 @@ public final class TeleportPadStore {
     }
 
     public synchronized boolean renamePad(String oldName, String newName) {
+        requireWritable();
         String normalizedOldName = normalizePadName(oldName);
         String normalizedNewName = normalizePadName(newName);
 
@@ -231,6 +268,9 @@ public final class TeleportPadStore {
     }
 
     public synchronized void validateConfiguredPads(MinecraftServer server) {
+        if (!isWritable()) {
+            return;
+        }
         EnderLinkConfig config = EnderLinkConfig.get();
         List<String> invalidPads = new ArrayList<>();
 
@@ -269,7 +309,11 @@ public final class TeleportPadStore {
 
         for (String invalidPad : invalidPads) {
             EnderLinkMod.LOGGER.debug("{} Removing invalid teleport pad {}", EnderLinkMod.logPrefix(), invalidPad);
-            removePad(invalidPad);
+            try {
+                removePad(invalidPad);
+            } catch (IllegalStateException exception) {
+                return;
+            }
         }
     }
 
@@ -314,10 +358,10 @@ public final class TeleportPadStore {
         storeFile.pads = padsByName.values().stream().map(TeleportPadData::copy).toList();
 
         try {
-            Files.createDirectories(DATA_DIR);
-            Files.writeString(DATA_PATH, GSON.toJson(storeFile));
+            dataFile.save(GSON.toJson(storeFile));
         } catch (IOException exception) {
             EnderLinkMod.LOGGER.warn("{} Failed to save teleport data: {}", EnderLinkMod.logPrefix(), exception.getMessage());
+            throw new IllegalStateException("Could not save teleport data. Further changes are blocked until restart.", exception);
         }
     }
 
@@ -327,7 +371,7 @@ public final class TeleportPadStore {
 
     private static final class StoreFile {
         int nextId = 1;
-        List<TeleportPadData> pads = List.of();
+        List<TeleportPadData> pads;
     }
 
     public static final class TeleportPadData {

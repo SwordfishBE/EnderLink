@@ -95,6 +95,9 @@ public final class EnderLinkCommand {
     }
 
     private static int add(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (!checkDataWritable(source)) {
+            return 0;
+        }
         if (!EnderLinkMod.permissions().canRun(source, PermissionService.ManagedAction.ADD)) {
             source.sendFailure(Component.literal(EnderLinkMod.logPrefix() + " You do not have permission to use /enderlink add."));
             return 0;
@@ -137,6 +140,9 @@ public final class EnderLinkCommand {
     }
 
     private static int link(CommandSourceStack source, String firstName, String secondName) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (!checkDataWritable(source)) {
+            return 0;
+        }
         if (!EnderLinkMod.permissions().canRun(source, PermissionService.ManagedAction.LINK)) {
             source.sendFailure(Component.literal(EnderLinkMod.logPrefix() + " You do not have permission to use /enderlink link."));
             return 0;
@@ -186,6 +192,9 @@ public final class EnderLinkCommand {
     }
 
     private static int unlink(CommandSourceStack source, String firstName, String secondName) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (!checkDataWritable(source)) {
+            return 0;
+        }
         if (!EnderLinkMod.permissions().canRun(source, PermissionService.ManagedAction.UNLINK)) {
             source.sendFailure(Component.literal(EnderLinkMod.logPrefix() + " You do not have permission to use /enderlink unlink."));
             return 0;
@@ -221,6 +230,9 @@ public final class EnderLinkCommand {
     }
 
     private static int remove(CommandSourceStack source, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (!checkDataWritable(source)) {
+            return 0;
+        }
         if (!EnderLinkMod.permissions().canRun(source, PermissionService.ManagedAction.REMOVE)) {
             source.sendFailure(Component.literal(EnderLinkMod.logPrefix() + " You do not have permission to use /enderlink remove."));
             return 0;
@@ -247,6 +259,9 @@ public final class EnderLinkCommand {
     }
 
     private static int rename(CommandSourceStack source, String name, String newName) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (!checkDataWritable(source)) {
+            return 0;
+        }
         if (!EnderLinkMod.permissions().canRun(source, PermissionService.ManagedAction.RENAME)) {
             source.sendFailure(Component.literal(EnderLinkMod.logPrefix() + " You do not have permission to use /enderlink rename."));
             return 0;
@@ -385,6 +400,15 @@ public final class EnderLinkCommand {
         EnderLinkMod.reloadConfig();
         source.sendSuccess(() -> Component.literal(EnderLinkMod.logPrefix() + " Config reloaded."), true);
         return 1;
+    }
+
+    private static boolean checkDataWritable(CommandSourceStack source) {
+        if (EnderLinkMod.padStore().isWritable()) {
+            return true;
+        }
+        source.sendFailure(Component.literal(EnderLinkMod.logPrefix()
+            + " Teleport data is read-only after a load or save failure. Restore the data and restart the server."));
+        return false;
     }
 
     private static MutableComponent formatPadComponent(TeleportPadData pad) {

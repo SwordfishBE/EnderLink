@@ -20,12 +20,17 @@ import java.util.regex.Pattern;
 
 public final class ElevatorCompat {
     private static final Pattern COMMENT_PATTERN = Pattern.compile("(?m)^\\s*//.*(?:\\R|$)");
+    private static Set<String> cachedBlocks = Set.of();
+
+    public static void refresh() {
+        cachedBlocks = Set.copyOf(loadElevatorBlocks());
+    }
 
     private ElevatorCompat() {
     }
 
     public static void warnIfConflictingBlocks() {
-        Set<String> elevatorBlocks = loadElevatorBlocks();
+        Set<String> elevatorBlocks = cachedBlocks;
         if (elevatorBlocks.isEmpty()) {
             return;
         }
@@ -53,7 +58,7 @@ public final class ElevatorCompat {
             return false;
         }
 
-        for (String elevatorBlockId : loadElevatorBlocks()) {
+        for (String elevatorBlockId : cachedBlocks) {
             try {
                 Block elevatorBlock = BuiltInRegistries.BLOCK.getValue(Identifier.parse(elevatorBlockId));
                 if (elevatorBlock != Blocks.AIR && elevatorBlock == block) {
@@ -72,11 +77,11 @@ public final class ElevatorCompat {
             return false;
         }
 
-        return loadElevatorBlocks().contains(normalizedBlockId);
+        return cachedBlocks.contains(normalizedBlockId);
     }
 
     public static String elevatorBlockCacheKey() {
-        Set<String> elevatorBlocks = loadElevatorBlocks();
+        Set<String> elevatorBlocks = cachedBlocks;
         return elevatorBlocks.isEmpty() ? "" : String.join("|", elevatorBlocks);
     }
 
